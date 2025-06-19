@@ -91,3 +91,12 @@ def messages():
         print("Incoming message:", data)
 
         text = data.get("text", "").lower()
+        user_id = data.get("user_id", "")
+        user_name = data.get("user_name", "")
+
+    else:
+        return jsonify({"text": "❓ I didn't understand that. Try:\n- set house gryffindor\n- +10 to ravenclaw for creativity\n- check in\n- show leaderboard"})
+
+    except Exception as e:
+        print("Error:", e)
+        return "", 200
