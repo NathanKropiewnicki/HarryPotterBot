@@ -131,8 +131,7 @@ def messages():
 
         elif "leaderboard" in text or "show leaderboard" in text:
             leaderboard = get_leaderboard()
-            message = "🏆 House Leaderboard:
-"
+            message = "🏆 House Leaderboard:\n"
             for i, (house, pts) in enumerate(leaderboard, start=1):
                 message += f"{i}. {house.title()} — {pts} pts\n"
             return jsonify({"type": "message", "text": message})
@@ -149,9 +148,16 @@ def messages():
         print("Error:", e)
         return jsonify({"type": "message", "text": "⚠️ An error occurred. Please try again later."})
 
+@app.route("/catchall", methods=["POST"])
+def catchall():
+    print("🔥 Caught a POST to /catchall")
+    print("Data:", request.json)
+    return jsonify({"type": "message", "text": "Caught it!"})
+
 # -------------------------- Run App -------------------------------
 if __name__ == "__main__":
     print("🚀 Hogwarts Bot is starting up...")
     init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
