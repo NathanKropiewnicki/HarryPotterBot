@@ -84,7 +84,7 @@ def handle_checkin(user_id):
     return True
 
 # ----------------------- Flask Routes -----------------------------
-@app.route("/api/messages", methods=["POST"])
+@app.route("/", methods=["POST"])
 def messages():
     data = request.json
     print("Received data:", data)
