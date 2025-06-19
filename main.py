@@ -94,16 +94,16 @@ def messages():
         print("Incoming message:", data)
 
         text = data.get("text", "").lower()
-        user_id = data.get("user_id", "user")
-        user_name = data.get("user_name", "wizard")
+        user_id = data.get("from", {}).get("id", "user")
+        user_name = data.get("from", {}).get("name", "wizard")
 
         if "set house" in text:
             for house in HOUSES:
                 if house in text:
                     success = set_user_house(user_id, user_name, house)
                     if success:
-                        return jsonify({"text": f"✅ {user_name}, you have been placed in {house.title()}!"})
-            return jsonify({"text": "⚠️ Please specify a valid house."})
+                        return jsonify({"type": "message", "text": f"✅ {user_name}, you have been placed in {house.title()}!"})
+            return jsonify({"type": "message", "text": "⚠️ Please specify a valid house."})
 
         elif text.startswith("+") and "to" in text:
             try:
@@ -113,30 +113,31 @@ def messages():
                 reason = " ".join(parts[3:])
                 if house in HOUSES:
                     add_points(house, points)
-                    return jsonify({"text": f"✅ {points} points to {house.title()} for {reason}"})
+                    return jsonify({"type": "message", "text": f"✅ {points} points to {house.title()} for {reason}"})
                 else:
-                    return jsonify({"text": "⚠️ Unknown house."})
+                    return jsonify({"type": "message", "text": "⚠️ Unknown house."})
             except:
-                return jsonify({"text": "⚠️ Format should be like '+10 to gryffindor for helping'"})
+                return jsonify({"type": "message", "text": "⚠️ Format should be like '+10 to gryffindor for helping'"})
 
         elif "check in" in text:
             now = datetime.utcnow()
             if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
-                return jsonify({"text": "⏰ Check-in window has closed (after 10 AM UTC)."})
+                return jsonify({"type": "message", "text": "⏰ Check-in window has closed (after 10 AM UTC)."})
             did_checkin = handle_checkin(user_id)
             if did_checkin:
-                return jsonify({"text": f"✅ {user_name}, 5 points awarded to your house for checking in!"})
+                return jsonify({"type": "message", "text": f"✅ {user_name}, 5 points awarded to your house for checking in!"})
             else:
-                return jsonify({"text": "📅 You've already checked in today."})
+                return jsonify({"type": "message", "text": "📅 You've already checked in today."})
 
         elif "leaderboard" in text or "show leaderboard" in text:
             leaderboard = get_leaderboard()
-            message = "🏆 *House Leaderboard:*\n"
+            message = "🏆 House Leaderboard:
+"
             for i, (house, pts) in enumerate(leaderboard, start=1):
                 message += f"{i}. {house.title()} — {pts} pts\n"
-            return jsonify({"text": message})
+            return jsonify({"type": "message", "text": message})
 
-        return jsonify({"text": (
+        return jsonify({"type": "message", "text": (
             "❓ I didn't understand that. Try:\n"
             "- set house gryffindor\n"
             "- +10 to ravenclaw for creativity\n"
@@ -146,18 +147,11 @@ def messages():
 
     except Exception as e:
         print("Error:", e)
-        return jsonify({"text": "⚠️ An error occurred. Please try again later."})
-        
-@app.route("/catchall", methods=["POST"])
-def catchall():
-    print("🔥 Caught a POST to /catchall")
-    print("Data:", request.json)
-    return jsonify({"text": "Caught it!"})
-
+        return jsonify({"type": "message", "text": "⚠️ An error occurred. Please try again later."})
 
 # -------------------------- Run App -------------------------------
 if __name__ == "__main__":
+    print("🚀 Hogwarts Bot is starting up...")
     init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
