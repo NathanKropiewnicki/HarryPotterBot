@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import os
 
 app = Flask(__name__)
@@ -32,6 +32,18 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO house_points (house, points) VALUES (?, ?)", (house, 0))
     conn.commit()
     conn.close()
+
+# ------------------------ Response Helper -------------------------
+def make_response(text, user_id="user"):
+    return {
+        "type": "message",
+        "id": "1",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "text": text,
+        "from": {"id": "bot"},
+        "recipient": {"id": user_id},
+        "conversation": {"id": "conv1"}
+    }
 
 # -------------------------- Utilities -----------------------------
 def add_points(house, points):
@@ -83,7 +95,11 @@ def handle_checkin(user_id):
     conn.close()
     return True
 
-# ----------------------- Flask Routes -----------------------------
+# ------------------------ Flask Routes ----------------------------
+@app.route("/", methods=["GET"])
+def home():
+    return "Hogwarts Bot is running! 🧙‍♂️", 200
+
 @app.route("/api/messages", methods=["POST"])
 def messages():
     try:
@@ -91,16 +107,16 @@ def messages():
         print("Incoming message:", data)
 
         text = data.get("text", "").lower()
-        user_id = data.get("user_id", "")
-        user_name = data.get("user_name", "")
+        user_id = data.get("user_id", "user")
+        user_name = data.get("user_name", "wizard")
 
         if "set house" in text:
             for house in HOUSES:
                 if house in text:
                     success = set_user_house(user_id, user_name, house)
                     if success:
-                        return jsonify({"type": "message", "text": f"✅ {user_name}, you have been placed in {house.title()}!"})
-            return jsonify({"type": "message", "text": "⚠️ Please specify a valid house."})
+                        return jsonify(make_response(f"✅ {user_name}, you have been placed in {house.title()}!", user_id))
+            return jsonify(make_response("⚠️ Please specify a valid house.", user_id))
 
         elif text.startswith("+") and "to" in text:
             try:
@@ -110,45 +126,45 @@ def messages():
                 reason = " ".join(parts[3:])
                 if house in HOUSES:
                     add_points(house, points)
-                    return jsonify({"type": "message", "text": f"✅ {points} points to {house.title()} for {reason}"})
+                    return jsonify(make_response(f"✅ {points} points to {house.title()} for {reason}", user_id))
                 else:
-                    return jsonify({"type": "message", "text": "⚠️ Unknown house."})
+                    return jsonify(make_response("⚠️ Unknown house.", user_id))
             except:
-                return jsonify({"type": "message", "text": "⚠️ Format should be like '+10 to gryffindor for helping'"})
+                return jsonify(make_response("⚠️ Format should be like '+10 to gryffindor for helping'", user_id))
 
         elif "check in" in text:
             now = datetime.utcnow()
             if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
-                return jsonify({"type": "message", "text": "⏰ Check-in window has closed (after 10 AM UTC)."})
+                return jsonify(make_response("⏰ Check-in window has closed (after 10 AM UTC).", user_id))
             did_checkin = handle_checkin(user_id)
             if did_checkin:
-                return jsonify({"type": "message", "text": f"✅ {user_name}, 5 points awarded to your house for checking in!"})
+                return jsonify(make_response(f"✅ {user_name}, 5 points awarded to your house for checking in!", user_id))
             else:
-                return jsonify({"type": "message", "text": "📅 You've already checked in today."})
+                return jsonify(make_response("📅 You've already checked in today.", user_id))
 
-        elif "leaderboard" in text:
+        elif "leaderboard" in text or "show leaderboard" in text:
             leaderboard = get_leaderboard()
             message = "🏆 *House Leaderboard:*\n"
             for i, (house, pts) in enumerate(leaderboard, start=1):
                 message += f"{i}. {house.title()} — {pts} pts\n"
-            return jsonify({"type": "message", "text": message})
+            return jsonify(make_response(message, user_id))
 
-        # Default case
-        return jsonify({"type": "message", "text": "❓ I didn't understand that. Try:\n- set house gryffindor\n- +10 to ravenclaw for creativity\n- check in\n- show leaderboard"})
+        # Default fallback
+        return jsonify(make_response(
+            "❓ I didn't understand that. Try:\n"
+            "- set house gryffindor\n"
+            "- +10 to ravenclaw for creativity\n"
+            "- check in\n"
+            "- show leaderboard",
+            user_id
+        ))
 
     except Exception as e:
         print("Error:", e)
-        # Return a generic message so Teams doesn't error
-        return jsonify({"type": "message", "text": "⚠️ Sorry, something went wrong."})
+        return jsonify(make_response("⚠️ An error occurred. Please try again later.", user_id))
 
-    
-@app.route("/", methods=["GET"])
-def home():
-    return "Hogwarts Bot is running! 🧙‍♂️", 200
-
-        
+# -------------------------- Run App -------------------------------
 if __name__ == "__main__":
     init_db()
-    port = int(os.environ.get("PORT", 5000))  # Read Render's assigned port
-    app.run(host="0.0.0.0", port=port)        # Bind to 0.0.0.0
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
