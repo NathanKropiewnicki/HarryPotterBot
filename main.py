@@ -145,6 +145,13 @@ def messages():
     except Exception as e:
         print("Error:", e)
         return jsonify({"text": "⚠️ An error occurred. Please try again later."})
+        
+@app.route("/catchall", methods=["POST"])
+def catchall():
+    print("🔥 Caught a POST to /catchall")
+    print("Data:", request.json)
+    return jsonify({"text": "Caught it!"})
+
 
 # -------------------------- Run App -------------------------------
 if __name__ == "__main__":
