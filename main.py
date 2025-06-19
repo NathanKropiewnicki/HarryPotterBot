@@ -94,7 +94,46 @@ def messages():
         user_id = data.get("user_id", "")
         user_name = data.get("user_name", "")
 
-    else:
+        if "set house" in text:
+            for house in HOUSES:
+                if house in text:
+                    success = set_user_house(user_id, user_name, house)
+                    if success:
+                        return jsonify({"text": f"✅ {user_name}, you have been placed in {house.title()}!"})
+            return jsonify({"text": "⚠️ Please specify a valid house."})
+
+        elif text.startswith("+") and "to" in text:
+            try:
+                parts = text.split(" ")
+                points = int(parts[0].replace("+", ""))
+                house = parts[2]
+                reason = " ".join(parts[3:])
+                if house in HOUSES:
+                    add_points(house, points)
+                    return jsonify({"text": f"✅ {points} points to {house.title()} for {reason}"})
+                else:
+                    return jsonify({"text": "⚠️ Unknown house."})
+            except:
+                return jsonify({"text": "⚠️ Format should be like '+10 to gryffindor for helping'"})
+
+        elif "check in" in text:
+            now = datetime.utcnow()
+            if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
+                return jsonify({"text": "⏰ Check-in window has closed (after 10 AM UTC)."})
+            did_checkin = handle_checkin(user_id)
+            if did_checkin:
+                return jsonify({"text": f"✅ {user_name}, 5 points awarded to your house for checking in!"})
+            else:
+                return jsonify({"text": "📅 You've already checked in today."})
+
+        elif "leaderboard" in text:
+            leaderboard = get_leaderboard()
+            message = "🏆 *House Leaderboard:*\n"
+            for i, (house, pts) in enumerate(leaderboard, start=1):
+                message += f"{i}. {house.title()} — {pts} pts\n"
+            return jsonify({"text": message})
+
+        # Default case
         return jsonify({"text": "❓ I didn't understand that. Try:\n- set house gryffindor\n- +10 to ravenclaw for creativity\n- check in\n- show leaderboard"})
 
     except Exception as e:
