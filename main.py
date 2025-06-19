@@ -88,6 +88,7 @@ def home():
 def messages():
     try:
         data = request.json
+        print("✅ Received POST /api/messages")
         print("Incoming message:", data)
 
         text = data.get("text", "").lower()
