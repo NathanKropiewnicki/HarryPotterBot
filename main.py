@@ -3,9 +3,9 @@ import sqlite3
 from datetime import datetime, date
 import os
 from flask_cors import CORS
-CORS(app)
 
 app = Flask(__name__)
+CORS(app)
 
 DB_FILE = "hogwarts.db"
 HOUSES = ["gryffindor", "hufflepuff", "ravenclaw", "slytherin"]
