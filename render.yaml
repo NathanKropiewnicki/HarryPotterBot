@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: hogwarts-bot
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: "main.py"
+    envVars:
+      - key: FLASK_ENV
+        value: production
