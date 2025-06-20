@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, date
 import os
 from flask_cors import CORS
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -103,22 +104,34 @@ def home():
 
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    data = request.json or {}
-    print("🎯 Received message:")
-    print(json.dumps(data, indent=2))
+    data = request.json
+    print("✅ Message received:", json.dumps(data, indent=2))
 
-    # Respond with a message Teams will display
+    service_url = data.get("serviceUrl")
+    conversation_id = data.get("conversation", {}).get("id")
+    user_id = data.get("from", {}).get("id")
+
+    if not (service_url and conversation_id and user_id):
+        return make_response("", 200)
+
+    reply_url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+
     reply = {
         "type": "message",
-        "text": "🧙 Hello from Hogwarts Bot!",
-        "from": {"id": "bot", "name": "HogwartsBot"},
-        "recipient": data.get("from", {"id": "user", "name": "wizard"}),
-        "conversation": data.get("conversation", {"id": "dummy-conv"}),
-        "replyToId": data.get("id", "msg1"),
-        "channelId": data.get("channelId", "emulator")
+        "text": "🧙 Hello from Hogwarts Bot!"
     }
 
-    return flask_make_response(json.dumps(reply), 200, {"Content-Type": "application/json"})
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    # If using authentication: add Authorization header here
+
+    # POST the reply back to Teams via Azure Bot Framework
+    response = requests.post(reply_url, json=reply, headers=headers)
+    print("🛠️ Reply status:", response.status_code, response.text)
+
+    return make_response("", 200)
 
 
 
