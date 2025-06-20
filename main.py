@@ -87,7 +87,7 @@ def handle_checkin(user_id):
 def make_response(text, user_id="user"):
     return {
         "type": "message",
-        "id": f"resp-{datetime.utcnow().timestamp()}",
+        "id": f"resp-{datetime.now(timezone.utc).timestamp()}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "text": text,
         "from": {"id": "bot", "name": "HogwartsBot"},
