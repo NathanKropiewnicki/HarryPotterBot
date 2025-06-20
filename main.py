@@ -101,7 +101,7 @@ def make_response(text, user_id="user"):
 def home():
     return "Hogwarts Bot is running! 🧙‍♂️", 200
 
-@app.route("/api/messages", methods=["POST"])
+@app.route("/", methods=["POST"])
 def messages():
     return flask_make_response(json.dumps({
         "type": "message",
