@@ -176,8 +176,10 @@ def messages():
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        print("❌ Error:", e)
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"type": "message", "text": f"⚠️ Internal error: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     print("🚀 Hogwarts Bot is starting...")
