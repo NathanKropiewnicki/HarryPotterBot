@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, make_response as flask_make_response
 import json
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import os
 from flask_cors import CORS
 import requests
