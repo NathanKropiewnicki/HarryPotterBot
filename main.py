@@ -1,4 +1,4 @@
-from flask import Flask, request, make_response as flask_make_response
+from flask import make_response as flask_make_response
 import sqlite3
 from datetime import datetime, date, timezone
 import os
@@ -104,11 +104,13 @@ def home():
 @app.route("/api/messages", methods=["POST"])
 def messages():
     data = request.json or {}
-    print("🎯 Received:", data)
+    print("🎯 Received message:")
+    print(json.dumps(data, indent=2))
 
+    # Respond with a message Teams will display
     reply = {
         "type": "message",
-        "text": "🧙 Hello! The bot is alive and Azure can see this!",
+        "text": "🧙 Hello from Hogwarts Bot!",
         "from": {"id": "bot", "name": "HogwartsBot"},
         "recipient": data.get("from", {"id": "user", "name": "wizard"}),
         "conversation": data.get("conversation", {"id": "dummy-conv"}),
@@ -116,11 +118,7 @@ def messages():
         "channelId": data.get("channelId", "emulator")
     }
 
-    return flask_make_response(
-        json.dumps(reply), 
-        200, 
-        {"Content-Type": "application/json"}
-    )
+    return flask_make_response(json.dumps(reply), 200, {"Content-Type": "application/json"})
 
 
 
