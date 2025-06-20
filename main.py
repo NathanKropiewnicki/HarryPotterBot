@@ -104,34 +104,43 @@ def home():
 
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    data = request.json
-    print("✅ Message received:", json.dumps(data, indent=2))
+    try:
+        data = request.json
+        print("✅ Incoming message:\n", json.dumps(data, indent=2))
 
-    service_url = data.get("serviceUrl")
-    conversation_id = data.get("conversation", {}).get("id")
-    user_id = data.get("from", {}).get("id")
+        # Parse required metadata from the incoming activity
+        activity_id = data.get("id")
+        service_url = data.get("serviceUrl")
+        conversation = data.get("conversation", {})
+        conversation_id = conversation.get("id")
 
-    if not (service_url and conversation_id and user_id):
+        # Build reply URL
+        reply_url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+
+        # Construct Bot Framework-compatible reply
+        reply = {
+            "type": "message",
+            "from": data.get("recipient"),  # Your bot
+            "recipient": data.get("from"),  # The user
+            "replyToId": activity_id,
+            "text": "🧙 Hello from Hogwarts Bot!",
+        }
+
+        # Send the reply to the user
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(reply_url, json=reply, headers=headers)
+        print("🔁 Reply status:", response.status_code)
+        print("📦 Payload sent:", json.dumps(reply, indent=2))
+
         return make_response("", 200)
 
-    reply_url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+    except Exception as e:
+        print("❌ Error in /api/messages:", e)
+        return make_response(jsonify({"error": str(e)}), 500)
 
-    reply = {
-        "type": "message",
-        "text": "🧙 Hello from Hogwarts Bot!"
-    }
-
-    headers = {
-        "Content-Type": "application/json"
-    }
-
-    # If using authentication: add Authorization header here
-
-    # POST the reply back to Teams via Azure Bot Framework
-    response = requests.post(reply_url, json=reply, headers=headers)
-    print("🛠️ Reply status:", response.status_code, response.text)
-
-    return make_response("", 200)
 
 
 
