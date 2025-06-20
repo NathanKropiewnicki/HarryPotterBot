@@ -103,13 +103,25 @@ def home():
 
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    print("✅ /api/messages was hit")
-    print("Request JSON:", request.json)
+    data = request.json or {}
+    print("🎯 Received:", data)
 
-    return jsonify({
+    reply = {
         "type": "message",
-        "text": "🧙 Hogwarts Bot is alive and responding!"
-    })
+        "text": "🧙 Hello! The bot is alive and Azure can see this!",
+        "from": {"id": "bot", "name": "HogwartsBot"},
+        "recipient": data.get("from", {"id": "user", "name": "wizard"}),
+        "conversation": data.get("conversation", {"id": "dummy-conv"}),
+        "replyToId": data.get("id", "msg1"),
+        "channelId": data.get("channelId", "emulator")
+    }
+
+    return flask_make_response(
+        json.dumps(reply), 
+        200, 
+        {"Content-Type": "application/json"}
+    )
+
 
 
 # -------------------------- Run App -------------------------------
