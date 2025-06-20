@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, make_response as flask_make_response
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import os
+import json
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -81,6 +82,20 @@ def handle_checkin(user_id):
     conn.close()
     return True
 
+# -------------------- Bot Framework Response ----------------------
+def make_response(text, user_id="user"):
+    return {
+        "type": "message",
+        "id": f"resp-{datetime.utcnow().timestamp()}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "text": text,
+        "from": {"id": "bot", "name": "HogwartsBot"},
+        "recipient": {"id": user_id, "name": user_id},
+        "conversation": {"id": f"conv-{user_id}"},
+        "replyToId": "message-id",
+        "channelId": "emulator"  # helps with Azure compatibility
+    }
+
 # ------------------------ Flask Routes ----------------------------
 @app.route("/", methods=["GET"])
 def home():
@@ -102,8 +117,8 @@ def messages():
                 if house in text:
                     success = set_user_house(user_id, user_name, house)
                     if success:
-                        return jsonify({"type": "message", "text": f"✅ {user_name}, you have been placed in {house.title()}!"})
-            return jsonify({"type": "message", "text": "⚠️ Please specify a valid house."})
+                        return flask_make_response(json.dumps(make_response(f"✅ {user_name}, you have been placed in {house.title()}!", user_id)), 200, {"Content-Type": "application/json"})
+            return flask_make_response(json.dumps(make_response("⚠️ Please specify a valid house.", user_id)), 200, {"Content-Type": "application/json"})
 
         elif text.startswith("+") and "to" in text:
             try:
@@ -113,46 +128,40 @@ def messages():
                 reason = " ".join(parts[3:])
                 if house in HOUSES:
                     add_points(house, points)
-                    return jsonify({"type": "message", "text": f"✅ {points} points to {house.title()} for {reason}"})
+                    return flask_make_response(json.dumps(make_response(f"✅ {points} points to {house.title()} for {reason}", user_id)), 200, {"Content-Type": "application/json"})
                 else:
-                    return jsonify({"type": "message", "text": "⚠️ Unknown house."})
+                    return flask_make_response(json.dumps(make_response("⚠️ Unknown house.", user_id)), 200, {"Content-Type": "application/json"})
             except:
-                return jsonify({"type": "message", "text": "⚠️ Format should be like '+10 to gryffindor for helping'"})
+                return flask_make_response(json.dumps(make_response("⚠️ Format should be like '+10 to gryffindor for helping'", user_id)), 200, {"Content-Type": "application/json"})
 
         elif "check in" in text:
             now = datetime.utcnow()
             if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
-                return jsonify({"type": "message", "text": "⏰ Check-in window has closed (after 10 AM UTC)."})
+                return flask_make_response(json.dumps(make_response("⏰ Check-in window has closed (after 10 AM UTC).", user_id)), 200, {"Content-Type": "application/json"})
             did_checkin = handle_checkin(user_id)
             if did_checkin:
-                return jsonify({"type": "message", "text": f"✅ {user_name}, 5 points awarded to your house for checking in!"})
+                return flask_make_response(json.dumps(make_response(f"✅ {user_name}, 5 points awarded to your house for checking in!", user_id)), 200, {"Content-Type": "application/json"})
             else:
-                return jsonify({"type": "message", "text": "📅 You've already checked in today."})
+                return flask_make_response(json.dumps(make_response("📅 You've already checked in today.", user_id)), 200, {"Content-Type": "application/json"})
 
         elif "leaderboard" in text or "show leaderboard" in text:
             leaderboard = get_leaderboard()
             message = "🏆 House Leaderboard:\n"
             for i, (house, pts) in enumerate(leaderboard, start=1):
                 message += f"{i}. {house.title()} — {pts} pts\n"
-            return jsonify({"type": "message", "text": message})
+            return flask_make_response(json.dumps(make_response(message, user_id)), 200, {"Content-Type": "application/json"})
 
-        return jsonify({"type": "message", "text": (
+        # Default fallback
+        return flask_make_response(json.dumps(make_response(
             "❓ I didn't understand that. Try:\n"
             "- set house gryffindor\n"
             "- +10 to ravenclaw for creativity\n"
             "- check in\n"
-            "- show leaderboard"
-        )})
+            "- show leaderboard", user_id)), 200, {"Content-Type": "application/json"})
 
     except Exception as e:
         print("Error:", e)
-        return jsonify({"type": "message", "text": "⚠️ An error occurred. Please try again later."})
-
-@app.route("/catchall", methods=["POST"])
-def catchall():
-    print("🔥 Caught a POST to /catchall")
-    print("Data:", request.json)
-    return jsonify({"type": "message", "text": "Caught it!"})
+        return flask_make_response(json.dumps(make_response("⚠️ An error occurred. Please try again later.", "user")), 200, {"Content-Type": "application/json"})
 
 # -------------------------- Run App -------------------------------
 if __name__ == "__main__":
@@ -160,4 +169,3 @@ if __name__ == "__main__":
     init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
