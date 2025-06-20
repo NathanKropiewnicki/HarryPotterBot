@@ -1,10 +1,10 @@
-from flask import Flask, request, jsonify, make_response as flask_make_response
-import json
+from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime, date, timezone
 import os
-from flask_cors import CORS
 import requests
+import json
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
@@ -13,7 +13,6 @@ DB_FILE = "hogwarts.db"
 HOUSES = ["gryffindor", "hufflepuff", "ravenclaw", "slytherin"]
 DAILY_CHECKIN_CUTOFF_HOUR = 10  # 10 AM UTC
 
-# ---------------------------- DB Setup ----------------------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -36,7 +35,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# -------------------------- Utilities -----------------------------
 def add_points(house, points):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -68,36 +66,49 @@ def handle_checkin(user_id):
     today = date.today()
     cursor.execute("SELECT last_checkin FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
-
     if row and row[0] == today.isoformat():
-        return False  # Already checked in
-
+        return False
     cursor.execute("UPDATE users SET last_checkin = ? WHERE user_id = ?", (today.isoformat(), user_id))
     cursor.execute("SELECT house FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     if row:
         house = row[0]
         add_points(house, 5)
-
     conn.commit()
     conn.close()
     return True
 
-# -------------------- Bot Framework Response ----------------------
-def make_response(text, user_id="user"):
-    return {
-        "type": "message",
-        "id": f"resp-{datetime.now(timezone.utc).timestamp()}",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "text": text,
-        "from": {"id": "bot", "name": "HogwartsBot"},
-        "recipient": {"id": user_id, "name": user_id},
-        "conversation": {"id": f"conv-{user_id}"},
-        "replyToId": "message-id",
-        "channelId": "emulator"  # helps with Azure compatibility
+def get_bot_access_token():
+    url = "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": os.environ["MICROSOFT_APP_ID"],
+        "client_secret": os.environ["MICROSOFT_APP_PASSWORD"],
+        "scope": "https://api.botframework.com/.default"
     }
+    response = requests.post(url, headers=headers, data=data)
+    response.raise_for_status()
+    return response.json()["access_token"]
 
-# ------------------------ Flask Routes ----------------------------
+def send_bot_reply(service_url, conversation_id, recipient, bot, reply_to_id, text):
+    access_token = get_bot_access_token()
+    url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "type": "message",
+        "from": bot,
+        "recipient": recipient,
+        "replyToId": reply_to_id,
+        "text": text
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    print("🔁 Bot Framework reply:", response.status_code, response.text)
+    return response.status_code
+
 @app.route("/", methods=["GET"])
 def home():
     return "Hogwarts Bot is running! 🧙‍♂️", 200
@@ -106,47 +117,70 @@ def home():
 def messages():
     try:
         data = request.json
-        print("✅ Incoming message:\n", json.dumps(data, indent=2))
+        print("📥 Incoming message:\n", json.dumps(data, indent=2))
 
-        # Parse required metadata from the incoming activity
-        activity_id = data.get("id")
+        text = data.get("text", "").lower()
+        user_id = data.get("from", {}).get("id", "user")
+        user_name = data.get("from", {}).get("name", "wizard")
         service_url = data.get("serviceUrl")
-        conversation = data.get("conversation", {})
-        conversation_id = conversation.get("id")
+        conversation_id = data.get("conversation", {}).get("id")
+        reply_to_id = data.get("id")
+        recipient = data.get("from")
+        bot = data.get("recipient")
 
-        # Build reply URL
-        reply_url = f"{service_url}/v3/conversations/{conversation_id}/activities"
+        # Default reply
+        reply_text = "🧙 Hello from Hogwarts Bot!"
 
-        # Construct Bot Framework-compatible reply
-        reply = {
-            "type": "message",
-            "from": data.get("recipient"),  # Your bot
-            "recipient": data.get("from"),  # The user
-            "replyToId": activity_id,
-            "text": "🧙 Hello from Hogwarts Bot!",
-        }
+        if "set house" in text:
+            for house in HOUSES:
+                if house in text:
+                    success = set_user_house(user_id, user_name, house)
+                    reply_text = f"✅ {user_name}, you have been placed in {house.title()}!" if success else "⚠️ Invalid house."
+                    break
+            else:
+                reply_text = "⚠️ Please specify a valid house."
 
-        # Send the reply to the user
-        headers = {
-            "Content-Type": "application/json"
-        }
+        elif text.startswith("+") and "to" in text:
+            try:
+                parts = text.split(" ")
+                points = int(parts[0].replace("+", ""))
+                house = parts[2]
+                reason = " ".join(parts[3:])
+                if house in HOUSES:
+                    add_points(house, points)
+                    reply_text = f"✅ {points} points to {house.title()} for {reason}"
+                else:
+                    reply_text = "⚠️ Unknown house."
+            except:
+                reply_text = "⚠️ Format should be like '+10 to gryffindor for helping'"
 
-        response = requests.post(reply_url, json=reply, headers=headers)
-        print("🔁 Reply status:", response.status_code)
-        print("📦 Payload sent:", json.dumps(reply, indent=2))
+        elif "check in" in text:
+            now = datetime.utcnow()
+            if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
+                reply_text = "⏰ Check-in window has closed (after 10 AM UTC)."
+            else:
+                did_checkin = handle_checkin(user_id)
+                reply_text = (
+                    f"✅ {user_name}, 5 points awarded to your house for checking in!"
+                    if did_checkin else
+                    "📅 You've already checked in today."
+                )
 
-        return make_response("", 200)
+        elif "leaderboard" in text:
+            leaderboard = get_leaderboard()
+            reply_text = "🏆 House Leaderboard:\n" + "\n".join(
+                f"{i+1}. {house.title()} — {pts} pts" for i, (house, pts) in enumerate(leaderboard)
+            )
+
+        send_bot_reply(service_url, conversation_id, recipient, bot, reply_to_id, reply_text)
+        return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        print("❌ Error in /api/messages:", e)
-        return make_response(jsonify({"error": str(e)}), 500)
+        print("❌ Error:", e)
+        return jsonify({"error": str(e)}), 500
 
-
-
-
-# -------------------------- Run App -------------------------------
 if __name__ == "__main__":
-    print("🚀 Hogwarts Bot is starting up...")
+    print("🚀 Hogwarts Bot is starting...")
     init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
