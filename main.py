@@ -108,60 +108,32 @@ def messages():
         print("✅ Received POST /api/messages")
         print("Incoming message:", data)
 
-        text = data.get("text", "").lower()
+        # Grab info from Bot Framework payload
         user_id = data.get("from", {}).get("id", "user")
         user_name = data.get("from", {}).get("name", "wizard")
 
-        if "set house" in text:
-            for house in HOUSES:
-                if house in text:
-                    success = set_user_house(user_id, user_name, house)
-                    if success:
-                        return flask_make_response(json.dumps(make_response(f"✅ {user_name}, you have been placed in {house.title()}!", user_id)), 200, {"Content-Type": "application/json"})
-            return flask_make_response(json.dumps(make_response("⚠️ Please specify a valid house.", user_id)), 200, {"Content-Type": "application/json"})
+        response = {
+            "type": "message",
+            "text": f"Hello {user_name}, this is a test reply from your Hogwarts bot!",
+            "from": {"id": "bot", "name": "HogwartsBot"},
+            "recipient": {"id": user_id, "name": user_name},
+            "conversation": data.get("conversation", {"id": "conv-id"}),
+            "replyToId": data.get("id"),
+            "channelId": data.get("channelId", "emulator")
+        }
 
-        elif text.startswith("+") and "to" in text:
-            try:
-                parts = text.split(" ")
-                points = int(parts[0].replace("+", ""))
-                house = parts[2]
-                reason = " ".join(parts[3:])
-                if house in HOUSES:
-                    add_points(house, points)
-                    return flask_make_response(json.dumps(make_response(f"✅ {points} points to {house.title()} for {reason}", user_id)), 200, {"Content-Type": "application/json"})
-                else:
-                    return flask_make_response(json.dumps(make_response("⚠️ Unknown house.", user_id)), 200, {"Content-Type": "application/json"})
-            except:
-                return flask_make_response(json.dumps(make_response("⚠️ Format should be like '+10 to gryffindor for helping'", user_id)), 200, {"Content-Type": "application/json"})
-
-        elif "check in" in text:
-            now = datetime.utcnow()
-            if now.hour >= DAILY_CHECKIN_CUTOFF_HOUR:
-                return flask_make_response(json.dumps(make_response("⏰ Check-in window has closed (after 10 AM UTC).", user_id)), 200, {"Content-Type": "application/json"})
-            did_checkin = handle_checkin(user_id)
-            if did_checkin:
-                return flask_make_response(json.dumps(make_response(f"✅ {user_name}, 5 points awarded to your house for checking in!", user_id)), 200, {"Content-Type": "application/json"})
-            else:
-                return flask_make_response(json.dumps(make_response("📅 You've already checked in today.", user_id)), 200, {"Content-Type": "application/json"})
-
-        elif "leaderboard" in text or "show leaderboard" in text:
-            leaderboard = get_leaderboard()
-            message = "🏆 House Leaderboard:\n"
-            for i, (house, pts) in enumerate(leaderboard, start=1):
-                message += f"{i}. {house.title()} — {pts} pts\n"
-            return flask_make_response(json.dumps(make_response(message, user_id)), 200, {"Content-Type": "application/json"})
-
-        # Default fallback
-        return flask_make_response(json.dumps(make_response(
-            "❓ I didn't understand that. Try:\n"
-            "- set house gryffindor\n"
-            "- +10 to ravenclaw for creativity\n"
-            "- check in\n"
-            "- show leaderboard", user_id)), 200, {"Content-Type": "application/json"})
+        return flask_make_response(json.dumps(response), 200, {"Content-Type": "application/json"})
 
     except Exception as e:
         print("Error:", e)
-        return flask_make_response(json.dumps(make_response("⚠️ An error occurred. Please try again later.", "user")), 200, {"Content-Type": "application/json"})
+        return flask_make_response(json.dumps({
+            "type": "message",
+            "text": "⚠️ An error occurred in the bot.",
+            "from": {"id": "bot"},
+            "recipient": {"id": "user"},
+            "conversation": {"id": "conv-id"},
+        }), 200, {"Content-Type": "application/json"})
+
 
 # -------------------------- Run App -------------------------------
 if __name__ == "__main__":
