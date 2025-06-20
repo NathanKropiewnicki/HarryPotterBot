@@ -103,36 +103,16 @@ def home():
 
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    try:
-        data = request.json
-        print("✅ Received POST /api/messages")
-        print("Incoming message:", data)
+    return flask_make_response(json.dumps({
+        "type": "message",
+        "text": "🧙 Hogwarts Bot is alive and responding!",
+        "from": {"id": "bot", "name": "HogwartsBot"},
+        "recipient": {"id": "user", "name": "user"},
+        "conversation": {"id": "conv-id"},
+        "replyToId": "msg-id",
+        "channelId": "emulator"
+    }), 200, {"Content-Type": "application/json"})
 
-        # Grab info from Bot Framework payload
-        user_id = data.get("from", {}).get("id", "user")
-        user_name = data.get("from", {}).get("name", "wizard")
-
-        response = {
-            "type": "message",
-            "text": f"Hello {user_name}, this is a test reply from your Hogwarts bot!",
-            "from": {"id": "bot", "name": "HogwartsBot"},
-            "recipient": {"id": user_id, "name": user_name},
-            "conversation": data.get("conversation", {"id": "conv-id"}),
-            "replyToId": data.get("id"),
-            "channelId": data.get("channelId", "emulator")
-        }
-
-        return flask_make_response(json.dumps(response), 200, {"Content-Type": "application/json"})
-
-    except Exception as e:
-        print("Error:", e)
-        return flask_make_response(json.dumps({
-            "type": "message",
-            "text": "⚠️ An error occurred in the bot.",
-            "from": {"id": "bot"},
-            "recipient": {"id": "user"},
-            "conversation": {"id": "conv-id"},
-        }), 200, {"Content-Type": "application/json"})
 
 
 # -------------------------- Run App -------------------------------
